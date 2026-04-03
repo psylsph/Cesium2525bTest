@@ -399,29 +399,7 @@ function addOwnShipRingsAndCompass(ownShipData, startTime) {
       }
     });
 
-    if (majorLine) {
-      viewer.entities.add({
-        position: new CallbackProperty((time) => {
-          const pos = positions.getValue(time);
-          if (!pos) return Cartesian3.ZERO;
-          const cart = Ellipsoid.WGS84.cartesianToCartographic(pos);
-          const radius = 70000;
-          return Cartesian3.fromRadians(
-            cart.longitude + Math.sin(angle) * radius / 6371000,
-            cart.latitude + Math.cos(angle) * radius / 6371000
-          );
-        }, false),
-        label: {
-          text: `${label.toFixed(0)}°`,
-          font: 'bold 12px monospace',
-          fillColor: Color.LIME,
-          showBackground: true,
-          backgroundColor: Color.BLACK.withAlpha(0.6),
-          pixelOffset: new Cartesian2(0, -10),
-          disableDepthTestDistance: Number.POSITIVE_INFINITY
-        }
-      });
-    }
+    
   }
 }
 
