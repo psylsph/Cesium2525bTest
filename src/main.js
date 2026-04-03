@@ -143,6 +143,24 @@ function getSymbolAffiliation(type) {
   return 'Friend';
 }
 
+function addPickableBackground(canvas) {
+  const ctx = canvas.getContext('2d');
+  const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  const data = imageData.data;
+  
+  for (let i = 0; i < data.length; i += 4) {
+    if (data[i + 3] === 0) {
+      data[i] = 0;
+      data[i + 1] = 0;
+      data[i + 2] = 0;
+      data[i + 3] = 1;
+    }
+  }
+  
+  ctx.putImageData(imageData, 0, 0);
+  return canvas;
+}
+
 function addTracksToMap(startTime) {
   const ownShipEntity = SCENARIO_SYMBOLS.find(s => s.id === OWN_SHIP_ID);
   
@@ -160,21 +178,25 @@ function addTracksToMap(startTime) {
       size: 35,
       monoColor: color,
       fill: true,
-      civilianColor: false
+      civilianColor: false,
+      infoBackground: 'rgba(0,0,0,0.5)'
     });
-    const canvas = sym.asCanvas();
+    let canvas = sym.asCanvas();
+    canvas = addPickableBackground(canvas);
     const anchor = sym.getAnchor();
     const centerOffsetX = canvas.width / 2 - anchor.x;
     const centerOffsetY = canvas.height / 2 - anchor.y;
 
     const entity = viewer.entities.add({
+      id: `track-${symbolData.id}`,
       position: positions,
       billboard: {
         image: canvas,
         pixelOffset: new Cartesian2(centerOffsetX, centerOffsetY),
         eyeOffset: new Cartesian3(0, 0, 0),
         horizontalOrigin: HorizontalOrigin.CENTER,
-        verticalOrigin: VerticalOrigin.CENTER
+        verticalOrigin: VerticalOrigin.CENTER,
+        id: `billboard-${symbolData.id}`
       },
       properties: {
         id: symbolData.id,
@@ -331,26 +353,47 @@ function setupSelectionHandler() {
   const handler = new ScreenSpaceEventHandler(viewer.scene.canvas);
   
   handler.setInputAction((click) => {
-    const pickedObject = viewer.scene.pick(click.position);
+    const pickedObjects = viewer.scene.drillPick(click.position);
     
-    if (defined(pickedObject) && pickedObject.id) {
-      const entity = pickedObject.id;
-      if (entity.properties && entity.properties.id) {
-        const trackId = entity.properties.id.getValue();
-        if (trackId) {
-          toggleFollowTrack(trackId);
+    console.log('Click at:', click.position.x, click.position.y);
+    console.log('Picked objects:', pickedObjects);
+    
+    if (pickedObjects && pickedObjects.length > 0) {
+      for (const picked of pickedObjects) {
+        console.log('Picked:', picked);
+        if (picked.id && picked.id.properties) {
+          const trackId = picked.id.properties.id ? picked.id.properties.id.getValue() : null;
+          console.log('Track ID from entity:', trackId);
+          
+          if (trackId) {
+            toggleFollowTrack(trackId);
+            return;
+          }
+          
+          if (picked.id.billboard && picked.id.billboard.id) {
+            const billboardId = picked.id.billboard.id;
+            console.log('Billboard ID:', billboardId);
+            const trackIdFromBillboard = billboardId.replace('billboard-', '');
+            console.log('Extracted track ID:', trackIdFromBillboard);
+            toggleFollowTrack(trackIdFromBillboard);
+            return;
+          }
         }
       }
     }
   }, ScreenSpaceEventType.LEFT_CLICK);
 
   handler.setInputAction((movement) => {
-    const pickedObject = viewer.scene.pick(movement.endPosition);
-    if (defined(pickedObject) && pickedObject.id && pickedObject.id.billboard) {
-      document.body.style.cursor = 'pointer';
-    } else {
-      document.body.style.cursor = 'default';
+    const pickedObjects = viewer.scene.drillPick(movement.endPosition);
+    if (pickedObjects && pickedObjects.length > 0) {
+      for (const picked of pickedObjects) {
+        if (picked.id && (picked.id.billboard || picked.id.polyline)) {
+          document.body.style.cursor = 'pointer';
+          return;
+        }
+      }
     }
+    document.body.style.cursor = 'default';
   }, ScreenSpaceEventType.MOUSE_MOVE);
 }
 
