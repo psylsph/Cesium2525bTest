@@ -53,7 +53,11 @@ To enable live aircraft tracking with authentication:
 **Without credentials**: Live flights still work using anonymous API (with lower rate limits)
 
 **Live Flight Features**:
-- Green aircraft icons show real-time flights
+- MIL-STD-2525 aircraft symbols with affiliation detection
+  - Blue/Cyan: Friendly (US, UK, Taiwan, Japan, etc.)
+  - Red: Hostile (China, Russia, North Korea, Iran)
+  - Yellow: Unknown (other countries)
+- Symbols show aircraft heading direction
 - Click aircraft to see callsign, altitude, speed, heading
 - Only loads aircraft in your current view area
 - Updates every 10 seconds to avoid API overload

@@ -157,6 +157,25 @@ function getSymbolAffiliation(type) {
   return 'Friend';
 }
 
+function getAircraftAffiliation(country) {
+  if (!country) return 'unknown';
+
+  const hostileCountries = ['Russia', 'China', 'North Korea', 'Iran'];
+  const friendlyCountries = ['United States', 'United Kingdom', 'France', 'Germany', 'Japan', 'South Korea', 'Taiwan', 'Australia', 'Canada'];
+
+  if (hostileCountries.some(c => country.includes(c))) return 'hostile';
+  if (friendlyCountries.some(c => country.includes(c))) return 'friendly';
+  return 'unknown';
+}
+
+function getAircraftSidc(affiliation) {
+  switch (affiliation) {
+    case 'hostile': return 'SHP--------D'; // Hostile Plane
+    case 'friendly': return 'SFP--------D'; // Friendly Plane
+    default: return 'SUP--------D'; // Unknown Plane
+  }
+}
+
 function addPickableBackground(canvas) {
   const ctx = canvas.getContext('2d');
   const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
@@ -568,26 +587,22 @@ function showOpenSkyDetails(aircraftId) {
   const icao24 = aircraftId.replace('opensky-', '');
   const aircraft = openskyAircraft[icao24];
   const entity = openskyEntities[icao24];
-  
+
   if (!aircraft || !entity) return;
 
   const detailsPanel = document.getElementById('trackDetails');
   const symbolCanvas = document.getElementById('symbolCanvas');
   const trackInfo = document.getElementById('trackInfo');
 
-  // Create a simple green circle icon for aircraft
-  const canvas = document.createElement('canvas');
-  canvas.width = 80;
-  canvas.height = 80;
-  const ctx = canvas.getContext('2d');
-  ctx.fillStyle = '#00ff00';
-  ctx.beginPath();
-  ctx.arc(40, 40, 30, 0, 2 * Math.PI);
-  ctx.fill();
-  ctx.fillStyle = '#000000';
-  ctx.font = 'bold 14px Arial';
-  ctx.textAlign = 'center';
-  ctx.fillText('✈', 40, 45);
+  const color = getSymbolColor(aircraft.affiliation === 'unknown' ? 'hostile' : aircraft.affiliation);
+  const sym = new ms.Symbol(aircraft.sidc, {
+    size: 80,
+    monoColor: color,
+    fill: true,
+    civilianColor: false,
+    direction: entity.properties?.heading || 0
+  });
+  const canvas = sym.asCanvas();
 
   symbolCanvas.innerHTML = '';
   symbolCanvas.appendChild(canvas);
@@ -595,11 +610,14 @@ function showOpenSkyDetails(aircraftId) {
   const position = entity.position;
   const cartographic = position ? Ellipsoid.WGS84.cartesianToCartographic(position) : null;
 
+  const affiliationDisplay = aircraft.affiliation.toUpperCase();
+
   trackInfo.innerHTML = `
     <div class="info-item"><strong>ICAO24:</strong> ${icao24}</div>
     <div class="info-item"><strong>Callsign:</strong> ${aircraft.callsign || 'N/A'}</div>
     <div class="info-item"><strong>Country:</strong> ${aircraft.originCountry || 'N/A'}</div>
-    <div class="info-item"><strong>Type:</strong> <span class="opensky">LIVE FLIGHT</span></div>
+    <div class="info-item"><strong>Type:</strong> <span class="${aircraft.affiliation === 'unknown' ? 'hostile' : aircraft.affiliation}">${affiliationDisplay} AIRCRAFT</span></div>
+    <div class="info-item"><strong>SIDC:</strong> ${aircraft.sidc}</div>
     ${entity.properties?.velocity ? `<div class="info-item"><strong>Speed:</strong> ${(entity.properties.velocity * 3.6).toFixed(0)} km/h</div>` : ''}
     ${entity.properties?.altitude ? `<div class="info-item"><strong>Altitude:</strong> ${(entity.properties.altitude * 0.3048).toFixed(0)} m</div>` : ''}
     ${entity.properties?.heading ? `<div class="info-item"><strong>Heading:</strong> ${entity.properties.heading.toFixed(0)}°</div>` : ''}
@@ -737,40 +755,49 @@ async function fetchOpenSkyAircraft(bounds) {
 
 function updateOpenSkyAircraft(states) {
   const seenIds = new Set();
-  
+
   states.forEach(state => {
     const [
-      icao24, callsign, originCountry, timePosition, 
-      lastContact, longitude, latitude, baroAltitude, 
-      onGround, velocity, trueTrack, verticalRate, 
+      icao24, callsign, originCountry, timePosition,
+      lastContact, longitude, latitude, baroAltitude,
+      onGround, velocity, trueTrack, verticalRate,
       sensors, geoAltitude, squawk, spi, positionSource
     ] = state;
-    
+
     if (!callsign || !longitude || !latitude) return;
-    
+
     seenIds.add(icao24);
-    
+
+    const affiliation = getAircraftAffiliation(originCountry);
+    const sidc = getAircraftSidc(affiliation);
+    const color = getSymbolColor(affiliation === 'unknown' ? 'hostile' : affiliation);
+
     if (!openskyEntities[icao24]) {
-      const canvas = document.createElement('canvas');
-      canvas.width = 20;
-      canvas.height = 20;
-      const ctx = canvas.getContext('2d');
-      ctx.fillStyle = '#00ff00';
-      ctx.beginPath();
-      ctx.arc(10, 10, 8, 0, 2 * Math.PI);
-      ctx.fill();
-      
+      const sym = new ms.Symbol(sidc, {
+        size: 25,
+        monoColor: color,
+        fill: true,
+        civilianColor: false,
+        infoBackground: 'rgba(0,0,0,0.5)',
+        direction: trueTrack || 0
+      });
+
+      let canvas = sym.asCanvas();
+      canvas = addPickableBackground(canvas);
+      const anchor = sym.getAnchor();
+      const centerOffsetX = canvas.width / 2 - anchor.x;
+      const centerOffsetY = canvas.height / 2 - anchor.y;
+
       const entity = viewer.entities.add({
         id: `opensky-${icao24}`,
         position: Cartesian3.fromDegrees(longitude, latitude, baroAltitude || 0),
         billboard: {
           image: canvas,
-          width: 20,
-          height: 20,
-          pixelOffset: new Cartesian2(0, 0),
+          pixelOffset: new Cartesian2(centerOffsetX, centerOffsetY),
           eyeOffset: new Cartesian3(0, 0, 0),
           horizontalOrigin: HorizontalOrigin.CENTER,
-          verticalOrigin: VerticalOrigin.CENTER
+          verticalOrigin: VerticalOrigin.CENTER,
+          id: `billboard-opensky-${icao24}`
         },
         properties: {
           icao24: icao24,
@@ -781,33 +808,61 @@ function updateOpenSkyAircraft(states) {
           heading: trueTrack,
           verticalRate: verticalRate,
           onGround: onGround,
-          type: 'opensky'
+          type: 'opensky',
+          affiliation: affiliation,
+          sidc: sidc
         }
       });
-      
+
       openskyEntities[icao24] = entity;
       openskyAircraft[icao24] = {
         icao24,
         callsign,
         originCountry,
+        affiliation,
+        sidc,
         lastUpdate: Date.now()
       };
     } else {
       const entity = openskyEntities[icao24];
       entity.position = Cartesian3.fromDegrees(longitude, latitude, baroAltitude || 0);
-      
-      if (entity.properties) {
-        entity.callsign = callsign;
-        entity.altitude = baroAltitude;
-        entity.velocity = velocity;
-        entity.heading = trueTrack;
-        entity.verticalRate = verticalRate;
+
+      // Update symbol if affiliation changed
+      if (entity.properties.affiliation !== affiliation) {
+        const sym = new ms.Symbol(sidc, {
+          size: 25,
+          monoColor: color,
+          fill: true,
+          civilianColor: false,
+          infoBackground: 'rgba(0,0,0,0.5)',
+          direction: trueTrack || 0
+        });
+
+        let canvas = sym.asCanvas();
+        canvas = addPickableBackground(canvas);
+        const anchor = sym.getAnchor();
+        const centerOffsetX = canvas.width / 2 - anchor.x;
+        const centerOffsetY = canvas.height / 2 - anchor.y;
+
+        entity.billboard.image = canvas;
+        entity.billboard.pixelOffset = new Cartesian2(centerOffsetX, centerOffsetY);
+
+        entity.properties.affiliation = affiliation;
+        entity.properties.sidc = sidc;
       }
-      
+
+      if (entity.properties) {
+        entity.properties.callsign = callsign;
+        entity.properties.altitude = baroAltitude;
+        entity.properties.velocity = velocity;
+        entity.properties.heading = trueTrack;
+        entity.properties.verticalRate = verticalRate;
+      }
+
       openskyAircraft[icao24].lastUpdate = Date.now();
     }
   });
-  
+
   // Remove aircraft not seen in this update
   Object.keys(openskyEntities).forEach(icao24 => {
     if (!seenIds.has(icao24)) {
