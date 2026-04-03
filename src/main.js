@@ -102,7 +102,7 @@ function initCesium() {
   const stopTime = JulianDate.addSeconds(startTime, 1800, new JulianDate());
 
   viewer = new Viewer('cesiumContainer', {
-    sceneMode: SceneMode.SCENE2D,
+    sceneMode: SceneMode.SCENE3D,
     sceneModePicker: false,
     baseLayerPicker: true,
     geocoder: false,
@@ -113,6 +113,8 @@ function initCesium() {
     selectionIndicator: true,
     shouldAnimate: true
   });
+
+  viewer.camera.minimumZoomDistance = 10000;
 
   viewer.clock.startTime = startTime;
   viewer.clock.stopTime = stopTime;
@@ -405,27 +407,50 @@ function toggleFollowTrack(trackId) {
   if (followTrackId === trackId) {
     followTrackId = null;
     selectedTrackId = trackId;
-    viewer.trackedEntity = undefined;
     updateTrackListHighlight();
     return;
   }
 
+  const entity = trackEntities[trackId];
+  const position = entity.position.getValue(viewer.clock.currentTime);
+
+  if (!position) {
+    followTrackId = trackId;
+    selectedTrackId = null;
+    updateTrackListHighlight();
+    showTrackDetails(trackId);
+    return;
+  }
+
+  const cartographic = Ellipsoid.WGS84.cartesianToCartographic(position);
+  const currentHeight = viewer.camera.positionCartographic.height;
+  const targetHeight = Math.max(currentHeight, 10000);
+
   followTrackId = trackId;
   selectedTrackId = null;
-  viewer.trackedEntity = trackEntities[trackId];
-  
+
+  viewer.camera.flyTo({
+    destination: Cartesian3.fromRadians(
+      cartographic.longitude,
+      cartographic.latitude,
+      targetHeight
+    ),
+    orientation: {
+      heading: 0,
+      pitch: -1.5707963267948966,
+      roll: 0
+    },
+    duration: 1.0,
+    convert: false
+  });
+
   updateTrackListHighlight();
   showTrackDetails(trackId);
 }
 
 function setupTrackingLoop() {
-  let isUsingTrackedEntity = false;
-
   viewer.clock.onTick.addEventListener(() => {
     if (!followTrackId) {
-      if (isUsingTrackedEntity) {
-        isUsingTrackedEntity = false;
-      }
       return;
     }
 
@@ -436,11 +461,23 @@ function setupTrackingLoop() {
     if (!position) return;
 
     const cartographic = Ellipsoid.WGS84.cartesianToCartographic(position);
+    
+    const currentHeight = viewer.camera.positionCartographic.height;
+    const targetHeight = Math.max(currentHeight, 10000);
 
-    if (!isUsingTrackedEntity) {
-      isUsingTrackedEntity = true;
-      viewer.trackedEntity = entity;
-    }
+    viewer.camera.setView({
+      destination: Cartesian3.fromRadians(
+        cartographic.longitude,
+        cartographic.latitude,
+        targetHeight
+      ),
+      orientation: {
+        heading: viewer.camera.heading,
+        pitch: viewer.camera.pitch,
+        roll: viewer.camera.roll
+      },
+      convert: false
+    });
 
     const trackInfo = document.getElementById('trackInfo');
     if (trackInfo && document.getElementById('trackDetails').style.display !== 'none') {
@@ -540,25 +577,7 @@ function initTrackList() {
   });
 }
 
-function initModeSelector() {
-  const mode2dBtn = document.getElementById('mode2d');
-  const mode3dBtn = document.getElementById('mode3d');
-
-  mode2dBtn.addEventListener('click', () => {
-    viewer.scene.mode = SceneMode.SCENE2D;
-    mode2dBtn.classList.add('active');
-    mode3dBtn.classList.remove('active');
-  });
-
-  mode3dBtn.addEventListener('click', () => {
-    viewer.scene.mode = SceneMode.SCENE3D;
-    mode3dBtn.classList.add('active');
-    mode2dBtn.classList.remove('active');
-  });
-}
-
 document.addEventListener('DOMContentLoaded', () => {
   initCesium();
   initTrackList();
-  initModeSelector();
 });
