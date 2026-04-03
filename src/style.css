@@ -79,6 +79,10 @@ body {
   background: #ff0000;
 }
 
+.legend-item.opensky .legend-color {
+  background: #00ff00;
+}
+
 .track-list {
   display: flex;
   flex-direction: column;
@@ -200,6 +204,11 @@ body {
 
 .info-item .hostile {
   color: #ff4444;
+  font-weight: 600;
+}
+
+.info-item .opensky {
+  color: #00ff00;
   font-weight: 600;
 }
 

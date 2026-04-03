@@ -1,8 +1,15 @@
 import ms from 'milsymbol';
 import { Viewer, Cartesian3, Cartesian2, ScreenSpaceEventHandler, ScreenSpaceEventType, SceneMode, defined, JulianDate, SampledPositionProperty, Color, ClockRange, HorizontalOrigin, VerticalOrigin, Ellipsoid, CallbackProperty } from 'cesium';
 import 'cesium/Build/Cesium/Widgets/widgets.css';
+import credentials from './credentials.json';
 
 const OWN_SHIP_ID = 'destroyer_escort';
+const OPENSKY_UPDATE_INTERVAL = 10000; // Update every 10 seconds
+const MIN_UPDATE_INTERVAL = 5000; // Minimum time between API calls
+
+let openskyLastUpdate = 0;
+let openskyAircraft = {};
+let openskyEntities = {};
 
 const SCENARIO_SYMBOLS = [
   {
@@ -13,10 +20,10 @@ const SCENARIO_SYMBOLS = [
     type: 'friendly',
     speed: '15 knots',
     path: [
-      { lon: 114.00, lat: 12.00, time: 0 },
-      { lon: 114.04, lat: 12.04, time: 600 },
-      { lon: 114.08, lat: 12.08, time: 1200 },
-      { lon: 114.12, lat: 12.12, time: 1800 }
+      { lon: 120.50, lat: 24.50, time: 0 },
+      { lon: 120.55, lat: 24.55, time: 600 },
+      { lon: 120.60, lat: 24.60, time: 1200 },
+      { lon: 120.65, lat: 24.65, time: 1800 }
     ]
   },
   {
@@ -27,10 +34,10 @@ const SCENARIO_SYMBOLS = [
     type: 'hostile',
     speed: '40 knots',
     path: [
-      { lon: 113.50, lat: 11.50, time: 0 },
-      { lon: 113.70, lat: 11.70, time: 400 },
-      { lon: 113.90, lat: 11.90, time: 800 },
-      { lon: 114.10, lat: 12.10, time: 1200 }
+      { lon: 119.80, lat: 24.20, time: 0 },
+      { lon: 120.00, lat: 24.35, time: 400 },
+      { lon: 120.20, lat: 24.50, time: 800 },
+      { lon: 120.40, lat: 24.65, time: 1200 }
     ]
   },
   {
@@ -41,10 +48,10 @@ const SCENARIO_SYMBOLS = [
     type: 'hostile',
     speed: '40 knots',
     path: [
-      { lon: 115.00, lat: 11.50, time: 0 },
-      { lon: 114.80, lat: 11.70, time: 400 },
-      { lon: 114.60, lat: 11.90, time: 800 },
-      { lon: 114.40, lat: 12.10, time: 1200 }
+      { lon: 121.20, lat: 24.20, time: 0 },
+      { lon: 121.00, lat: 24.35, time: 400 },
+      { lon: 120.80, lat: 24.50, time: 800 },
+      { lon: 120.60, lat: 24.65, time: 1200 }
     ]
   },
   {
@@ -55,10 +62,10 @@ const SCENARIO_SYMBOLS = [
     type: 'hostile',
     speed: '500 knots',
     path: [
-      { lon: 112.50, lat: 13.00, time: 0 },
-      { lon: 113.00, lat: 12.80, time: 60 },
-      { lon: 113.50, lat: 12.60, time: 120 },
-      { lon: 114.00, lat: 12.40, time: 180 }
+      { lon: 119.00, lat: 25.00, time: 0 },
+      { lon: 119.50, lat: 24.90, time: 60 },
+      { lon: 120.00, lat: 24.80, time: 120 },
+      { lon: 120.50, lat: 24.70, time: 180 }
     ]
   },
   {
@@ -69,10 +76,10 @@ const SCENARIO_SYMBOLS = [
     type: 'hostile',
     speed: '550 knots',
     path: [
-      { lon: 115.50, lat: 12.50, time: 30 },
-      { lon: 115.25, lat: 12.42, time: 60 },
-      { lon: 115.00, lat: 12.33, time: 90 },
-      { lon: 114.75, lat: 12.25, time: 120 }
+      { lon: 121.80, lat: 24.80, time: 30 },
+      { lon: 121.60, lat: 24.70, time: 60 },
+      { lon: 121.40, lat: 24.60, time: 90 },
+      { lon: 121.20, lat: 24.50, time: 120 }
     ]
   },
   {
@@ -83,10 +90,10 @@ const SCENARIO_SYMBOLS = [
     type: 'ownship',
     speed: '20 knots',
     path: [
-      { lon: 113.90, lat: 11.90, time: 0 },
-      { lon: 113.96, lat: 11.96, time: 600 },
-      { lon: 114.02, lat: 12.02, time: 1200 },
-      { lon: 114.08, lat: 12.08, time: 1800 }
+      { lon: 120.30, lat: 24.30, time: 0 },
+      { lon: 120.38, lat: 24.38, time: 600 },
+      { lon: 120.46, lat: 24.46, time: 1200 },
+      { lon: 120.54, lat: 24.54, time: 1800 }
     ]
   }
 ];
@@ -127,7 +134,7 @@ function initCesium() {
   viewer.clock.shouldAnimate = true;
 
   viewer.camera.setView({
-    destination: Cartesian3.fromDegrees(114.2, 12.0, 150000)
+    destination: Cartesian3.fromDegrees(120.5, 24.5, 150000)
   });
 
   viewer.timeline.zoomTo(startTime, stopTime);
@@ -135,6 +142,7 @@ function initCesium() {
   addTracksToMap(startTime);
   setupSelectionHandler();
   setupTrackingLoop();
+  setupOpenSkyIntegration();
 }
 
 function getSymbolColor(type) {
@@ -361,7 +369,14 @@ function selectTrack(trackId) {
     viewer.trackedEntity = undefined;
   }
   selectedTrackId = trackId;
-  showTrackDetails(trackId);
+  
+  // Check if it's an OpenSky aircraft
+  if (trackId.startsWith('opensky-')) {
+    showOpenSkyDetails(trackId);
+  } else {
+    showTrackDetails(trackId);
+  }
+  
   updateTrackListHighlight();
 }
 
@@ -549,6 +564,55 @@ function showTrackDetails(trackId) {
   detailsPanel.style.display = 'block';
 }
 
+function showOpenSkyDetails(aircraftId) {
+  const icao24 = aircraftId.replace('opensky-', '');
+  const aircraft = openskyAircraft[icao24];
+  const entity = openskyEntities[icao24];
+  
+  if (!aircraft || !entity) return;
+
+  const detailsPanel = document.getElementById('trackDetails');
+  const symbolCanvas = document.getElementById('symbolCanvas');
+  const trackInfo = document.getElementById('trackInfo');
+
+  // Create a simple green circle icon for aircraft
+  const canvas = document.createElement('canvas');
+  canvas.width = 80;
+  canvas.height = 80;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#00ff00';
+  ctx.beginPath();
+  ctx.arc(40, 40, 30, 0, 2 * Math.PI);
+  ctx.fill();
+  ctx.fillStyle = '#000000';
+  ctx.font = 'bold 14px Arial';
+  ctx.textAlign = 'center';
+  ctx.fillText('✈', 40, 45);
+
+  symbolCanvas.innerHTML = '';
+  symbolCanvas.appendChild(canvas);
+
+  const position = entity.position;
+  const cartographic = position ? Ellipsoid.WGS84.cartesianToCartographic(position) : null;
+
+  trackInfo.innerHTML = `
+    <div class="info-item"><strong>ICAO24:</strong> ${icao24}</div>
+    <div class="info-item"><strong>Callsign:</strong> ${aircraft.callsign || 'N/A'}</div>
+    <div class="info-item"><strong>Country:</strong> ${aircraft.originCountry || 'N/A'}</div>
+    <div class="info-item"><strong>Type:</strong> <span class="opensky">LIVE FLIGHT</span></div>
+    ${entity.properties?.velocity ? `<div class="info-item"><strong>Speed:</strong> ${(entity.properties.velocity * 3.6).toFixed(0)} km/h</div>` : ''}
+    ${entity.properties?.altitude ? `<div class="info-item"><strong>Altitude:</strong> ${(entity.properties.altitude * 0.3048).toFixed(0)} m</div>` : ''}
+    ${entity.properties?.heading ? `<div class="info-item"><strong>Heading:</strong> ${entity.properties.heading.toFixed(0)}°</div>` : ''}
+    ${entity.properties?.verticalRate ? `<div class="info-item"><strong>Vertical Rate:</strong> ${(entity.properties.verticalRate * 60 * 0.3048).toFixed(0)} m/min</div>` : ''}
+    ${cartographic ? `
+      <div class="info-item"><strong>Position:</strong> ${(cartographic.latitude * 180 / Math.PI).toFixed(4)}°, ${(cartographic.longitude * 180 / Math.PI).toFixed(4)}°</div>
+    ` : ''}
+    <div class="info-item follow-status"><strong>Live Data:</strong> <span class="following-indicator">YES</span></div>
+  `;
+
+  detailsPanel.style.display = 'block';
+}
+
 function initTrackList() {
   const trackList = document.getElementById('trackList');
   
@@ -578,6 +642,220 @@ function initTrackList() {
     item.addEventListener('click', () => toggleFollowTrack(symbolData.id));
     trackList.appendChild(item);
   });
+}
+
+function getCameraBounds() {
+  const rectangle = viewer.camera.computeViewRectangle();
+  if (!rectangle) {
+    console.log('No rectangle computed from camera');
+    return null;
+  }
+
+  // Handle the case where the view crosses the antimeridian
+  let west = rectangle.west * 180 / Math.PI;
+  let east = rectangle.east * 180 / Math.PI;
+  let south = rectangle.south * 180 / Math.PI;
+  let north = rectangle.north * 180 / Math.PI;
+
+  // Normalize longitude to [-180, 180]
+  if (west < -180) west += 360;
+  if (west > 180) west -= 360;
+  if (east < -180) east += 360;
+  if (east > 180) east -= 360;
+
+  const bounds = {
+    lamin: south,
+    lomin: west,
+    lamax: north,
+    lomax: east
+  };
+
+  console.log('Camera bounds:', bounds);
+  console.log('View area covers:', {
+    latitude: `${south.toFixed(2)}° to ${north.toFixed(2)}°`,
+    longitude: `${west.toFixed(2)}° to ${east.toFixed(2)}°`
+  });
+
+  return bounds;
+}
+
+async function fetchOpenSkyAircraft(bounds) {
+  const now = Date.now();
+  if (now - openskyLastUpdate < MIN_UPDATE_INTERVAL) {
+    return;
+  }
+
+  openskyLastUpdate = now;
+
+  try {
+    // Use proxy to avoid CORS issues
+    let url = `/opensky-api/api/states/all?lamin=${bounds.lamin}&lomin=${bounds.lomin}&lamax=${bounds.lamax}&lomax=${bounds.lomax}`;
+
+    const headers = {};
+
+    if (credentials.clientId) {
+      const authString = btoa(`${credentials.clientId}:${credentials.clientSecret || ''}`);
+      headers['Authorization'] = `Basic ${authString}`;
+    }
+
+    console.log('Fetching OpenSky data:', url);
+
+    const response = await fetch(url, { headers });
+
+    console.log('OpenSky response status:', response.status);
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const data = await response.json();
+
+    console.log('OpenSky response time:', data.time);
+    console.log('States value:', data.states);
+    console.log('States is null:', data.states === null);
+
+    // Handle null states - means no aircraft in the area
+    if (data.states === null) {
+      console.log('No aircraft in current view area');
+      // Clean up old aircraft
+      cleanupOldAircraft();
+      return;
+    }
+
+    if (!Array.isArray(data.states)) {
+      console.warn('Invalid OpenSky API response:', data);
+      return;
+    }
+
+    console.log(`Processing ${data.states.length} aircraft`);
+
+    updateOpenSkyAircraft(data.states);
+  } catch (error) {
+    console.error('Error fetching OpenSky data:', error);
+  }
+}
+
+function updateOpenSkyAircraft(states) {
+  const seenIds = new Set();
+  
+  states.forEach(state => {
+    const [
+      icao24, callsign, originCountry, timePosition, 
+      lastContact, longitude, latitude, baroAltitude, 
+      onGround, velocity, trueTrack, verticalRate, 
+      sensors, geoAltitude, squawk, spi, positionSource
+    ] = state;
+    
+    if (!callsign || !longitude || !latitude) return;
+    
+    seenIds.add(icao24);
+    
+    if (!openskyEntities[icao24]) {
+      const canvas = document.createElement('canvas');
+      canvas.width = 20;
+      canvas.height = 20;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#00ff00';
+      ctx.beginPath();
+      ctx.arc(10, 10, 8, 0, 2 * Math.PI);
+      ctx.fill();
+      
+      const entity = viewer.entities.add({
+        id: `opensky-${icao24}`,
+        position: Cartesian3.fromDegrees(longitude, latitude, baroAltitude || 0),
+        billboard: {
+          image: canvas,
+          width: 20,
+          height: 20,
+          pixelOffset: new Cartesian2(0, 0),
+          eyeOffset: new Cartesian3(0, 0, 0),
+          horizontalOrigin: HorizontalOrigin.CENTER,
+          verticalOrigin: VerticalOrigin.CENTER
+        },
+        properties: {
+          icao24: icao24,
+          callsign: callsign,
+          originCountry: originCountry,
+          altitude: baroAltitude,
+          velocity: velocity,
+          heading: trueTrack,
+          verticalRate: verticalRate,
+          onGround: onGround,
+          type: 'opensky'
+        }
+      });
+      
+      openskyEntities[icao24] = entity;
+      openskyAircraft[icao24] = {
+        icao24,
+        callsign,
+        originCountry,
+        lastUpdate: Date.now()
+      };
+    } else {
+      const entity = openskyEntities[icao24];
+      entity.position = Cartesian3.fromDegrees(longitude, latitude, baroAltitude || 0);
+      
+      if (entity.properties) {
+        entity.callsign = callsign;
+        entity.altitude = baroAltitude;
+        entity.velocity = velocity;
+        entity.heading = trueTrack;
+        entity.verticalRate = verticalRate;
+      }
+      
+      openskyAircraft[icao24].lastUpdate = Date.now();
+    }
+  });
+  
+  // Remove aircraft not seen in this update
+  Object.keys(openskyEntities).forEach(icao24 => {
+    if (!seenIds.has(icao24)) {
+      const age = Date.now() - (openskyAircraft[icao24]?.lastUpdate || 0);
+      if (age > 60000) { // Remove after 60 seconds
+        viewer.entities.remove(openskyEntities[icao24]);
+        delete openskyEntities[icao24];
+        delete openskyAircraft[icao24];
+      }
+    }
+  });
+}
+
+function cleanupOldAircraft() {
+  const now = Date.now();
+  Object.keys(openskyEntities).forEach(icao24 => {
+    const age = now - (openskyAircraft[icao24]?.lastUpdate || 0);
+    if (age > 60000) { // Remove after 60 seconds
+      viewer.entities.remove(openskyEntities[icao24]);
+      delete openskyEntities[icao24];
+      delete openskyAircraft[icao24];
+    }
+  });
+}
+
+function setupOpenSkyIntegration() {
+  let updateTimer = null;
+  
+  viewer.camera.changed.addEventListener(() => {
+    if (updateTimer) {
+      clearTimeout(updateTimer);
+    }
+    
+    updateTimer = setTimeout(() => {
+      const bounds = getCameraBounds();
+      if (bounds) {
+        fetchOpenSkyAircraft(bounds);
+      }
+    }, 1000);
+  });
+  
+  // Initial fetch
+  setTimeout(() => {
+    const bounds = getCameraBounds();
+    if (bounds) {
+      fetchOpenSkyAircraft(bounds);
+    }
+  }, 2000);
 }
 
 document.addEventListener('DOMContentLoaded', () => {
