@@ -137,6 +137,12 @@ function getSymbolColor(type) {
   return 'rgb(0, 255, 255)';
 }
 
+function getSymbolAffiliation(type) {
+  if (type === 'hostile') return 'Hostile';
+  if (type === 'ownship') return 'Friend';
+  return 'Friend';
+}
+
 function addTracksToMap(startTime) {
   const ownShipEntity = SCENARIO_SYMBOLS.find(s => s.id === OWN_SHIP_ID);
   
@@ -150,7 +156,12 @@ function addTracksToMap(startTime) {
     });
 
     const color = getSymbolColor(symbolData.type);
-    const sym = new ms.Symbol(symbolData.sidc, { size: 35, monoColor: color });
+    const sym = new ms.Symbol(symbolData.sidc, { 
+      size: 35,
+      monoColor: color,
+      fill: true,
+      civilianColor: false
+    });
     const canvas = sym.asCanvas();
     const anchor = sym.getAnchor();
     const centerOffsetX = canvas.width / 2 - anchor.x;
@@ -326,10 +337,21 @@ function setupSelectionHandler() {
       const entity = pickedObject.id;
       if (entity.properties && entity.properties.id) {
         const trackId = entity.properties.id.getValue();
-        toggleFollowTrack(trackId);
+        if (trackId) {
+          toggleFollowTrack(trackId);
+        }
       }
     }
   }, ScreenSpaceEventType.LEFT_CLICK);
+
+  handler.setInputAction((movement) => {
+    const pickedObject = viewer.scene.pick(movement.endPosition);
+    if (defined(pickedObject) && pickedObject.id && pickedObject.id.billboard) {
+      document.body.style.cursor = 'pointer';
+    } else {
+      document.body.style.cursor = 'default';
+    }
+  }, ScreenSpaceEventType.MOUSE_MOVE);
 }
 
 function toggleFollowTrack(trackId) {
@@ -423,7 +445,12 @@ function showTrackDetails(trackId) {
   const trackInfo = document.getElementById('trackInfo');
 
   const color = getSymbolColor(track.type);
-  const sym = new ms.Symbol(track.sidc, { size: 80, monoColor: color });
+  const sym = new ms.Symbol(track.sidc, { 
+    size: 80, 
+    monoColor: color,
+    fill: true,
+    civilianColor: false
+  });
   const canvas = sym.asCanvas();
   
   symbolCanvas.innerHTML = '';
@@ -460,7 +487,12 @@ function initTrackList() {
     item.dataset.id = symbolData.id;
     
     const color = getSymbolColor(symbolData.type);
-    const sym = new ms.Symbol(symbolData.sidc, { size: 40, monoColor: color });
+    const sym = new ms.Symbol(symbolData.sidc, { 
+      size: 40, 
+      monoColor: color,
+      fill: true,
+      civilianColor: false
+    });
     const canvas = sym.asCanvas();
     
     item.innerHTML = `
