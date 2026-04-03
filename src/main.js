@@ -93,6 +93,7 @@ const SCENARIO_SYMBOLS = [
 
 let viewer;
 let followTrackId = null;
+let selectedTrackId = null;
 const trackEntities = {};
 const trackData = {};
 
@@ -349,33 +350,36 @@ function createCirclePositions(lon, lat, radiusMeters, numPoints) {
   return positions;
 }
 
+function selectTrack(trackId) {
+  if (followTrackId === trackId) {
+    followTrackId = null;
+    viewer.trackedEntity = undefined;
+  }
+  selectedTrackId = trackId;
+  showTrackDetails(trackId);
+  updateTrackListHighlight();
+}
+
 function setupSelectionHandler() {
   const handler = new ScreenSpaceEventHandler(viewer.scene.canvas);
   
   handler.setInputAction((click) => {
     const pickedObjects = viewer.scene.drillPick(click.position);
     
-    console.log('Click at:', click.position.x, click.position.y);
-    console.log('Picked objects:', pickedObjects);
-    
     if (pickedObjects && pickedObjects.length > 0) {
       for (const picked of pickedObjects) {
-        console.log('Picked:', picked);
         if (picked.id && picked.id.properties) {
           const trackId = picked.id.properties.id ? picked.id.properties.id.getValue() : null;
-          console.log('Track ID from entity:', trackId);
           
           if (trackId) {
-            toggleFollowTrack(trackId);
+            selectTrack(trackId);
             return;
           }
           
           if (picked.id.billboard && picked.id.billboard.id) {
             const billboardId = picked.id.billboard.id;
-            console.log('Billboard ID:', billboardId);
             const trackIdFromBillboard = billboardId.replace('billboard-', '');
-            console.log('Extracted track ID:', trackIdFromBillboard);
-            toggleFollowTrack(trackIdFromBillboard);
+            selectTrack(trackIdFromBillboard);
             return;
           }
         }
@@ -400,35 +404,15 @@ function setupSelectionHandler() {
 function toggleFollowTrack(trackId) {
   if (followTrackId === trackId) {
     followTrackId = null;
+    selectedTrackId = trackId;
     viewer.trackedEntity = undefined;
     updateTrackListHighlight();
     return;
   }
 
-  const currentHeight = viewer.camera.positionCartographic.height;
-  const currentHeading = viewer.camera.heading;
-  const currentPitch = viewer.camera.pitch;
-  
   followTrackId = trackId;
+  selectedTrackId = null;
   viewer.trackedEntity = trackEntities[trackId];
-  
-  setTimeout(() => {
-    const currentCamHeight = viewer.camera.positionCartographic.height;
-    if (Math.abs(currentHeight - currentCamHeight) > 100) {
-      viewer.camera.setView({
-        destination: Cartesian3.fromRadians(
-          viewer.camera.positionCartographic.longitude,
-          viewer.camera.positionCartographic.latitude,
-          currentHeight
-        ),
-        orientation: {
-          heading: currentHeading,
-          pitch: currentPitch,
-          roll: viewer.camera.roll
-        }
-      });
-    }
-  }, 50);
   
   updateTrackListHighlight();
   showTrackDetails(trackId);
@@ -471,11 +455,15 @@ function setupTrackingLoop() {
 function updateTrackListHighlight() {
   const items = document.querySelectorAll('.track-item');
   items.forEach(item => {
-    item.classList.remove('following');
+    item.classList.remove('selected', 'following');
   });
+  
   if (followTrackId) {
     const activeItem = document.querySelector(`.track-item[data-id="${followTrackId}"]`);
     if (activeItem) activeItem.classList.add('following');
+  } else if (selectedTrackId) {
+    const activeItem = document.querySelector(`.track-item[data-id="${selectedTrackId}"]`);
+    if (activeItem) activeItem.classList.add('selected');
   }
 }
 

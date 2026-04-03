@@ -67,7 +67,8 @@
 - Name and SIDC text
 - Left border color indicates type
 - Hover: translate and background change
-- Following state: highlighted border and glow
+- Selected state (map click): subtle border highlight (#2d3748 background, 1px border)
+- Following state (sidebar click): prominent border and glow (#1a3a5c background, 2px border, stronger shadow)
 
 **Track Details Panel:**
 - Large symbol preview (80px)
@@ -113,36 +114,47 @@
 ### 4.3 Track Selection & Following
 
 **Selection Methods:**
-- Click track in sidebar list
-- Click track symbol on map
+- Click track symbol on map: highlights track and shows details (no auto-center)
+- Click track in sidebar list: follows track (centers camera and tracks)
 
-**Follow Mode:**
-- Click to follow (centers camera on track)
-- Click same track again to stop following
-- Click different track to switch
+**Selected Track (Map Click):**
+- Highlights track in sidebar with subtle border
+- Shows track details in details panel
+- Does not change camera position or zoom
+- Click another track to switch selection
+- Track remains selected until sidebar click or map click on different track
+
+**Follow Mode (Sidebar Click):**
+- Centers camera on track and follows movement
+- Click same track again to stop following (reverts to selected state)
+- Click different track to switch following
 - Zoom in/out freely while following (preserves zoom level)
 - Camera automatically tracks selected entity position
 - Position coordinates update in real-time in details panel
+- Highlights track in sidebar with prominent border and glow
 
 **Zoom Behavior:**
 - Mouse wheel/pinch to zoom
 - Zoom level preserved when selecting new track to follow
 - Range rings and compass scale with zoom level
+- Uses `viewer.trackedEntity` for automatic camera following
 
 ### 4.4 Own Ship Display
 
 **Range Rings:**
 - 5 concentric circles around HMS Defender
-- Radii scale with camera zoom: 5k, 10k, 25k, 50k, 100k (scaled)
-- Ring labels update dynamically
+- Fixed radii: 5km, 10km, 25km, 50km, 100km
+- Ring labels at cardinal points (N, E, S, W)
 - Lime green color with transparency
+- Centered on and follows own ship position via CallbackProperty
 
 **Compass Bearing Lines:**
-- 36 lines at 10° intervals
+- 16 lines at 22.5° intervals (N, NNE, NE, ENE, E, etc.)
 - Major lines at 0°, 90°, 180°, 270° (thicker, more visible)
-- Degree labels at major compass points
+- Degree labels at major compass points (N, E, S, W)
 - Lines scale with zoom level
 - Lime green color with transparency
+- Centered on and follows own ship position via CallbackProperty
 
 ### 4.5 Track Details Panel
 
@@ -165,11 +177,21 @@
 - SampledPositionProperty for time-based interpolation
 - Waypoints stored as {lon, lat, time} objects
 - Position calculated for any clock time via interpolation
+- Coordinate conversion uses `Ellipsoid.WGS84.cartesianToCartographic()` for accurate position retrieval
+- Real-time position updates in tracking loop using `viewer.clock.onTick`
 
 **Symbol Rendering:**
-- milsymbol library generates canvas elements
+- milsymbol v2 library generates canvas elements using `asCanvas()` method
 - SIDC codes validated for 2525D standard
 - monoColor property overrides default affiliation colors
+- `fill: true` and `civilianColor: false` options for filled symbols
+- Canvas offset calculation: `centerOffsetX = canvas.width/2 - anchor.x` to properly center symbols
+- Nearly-transparent background (alpha 1) added to enable click detection on unfilled symbol areas
+
+**Click Detection:**
+- `scene.drillPick()` used instead of `scene.pick()` to handle transparent symbol areas
+- Billboard and entity IDs custom-set for reliable track identification
+- Custom IDs follow pattern: `track-{id}` for entities, `billboard-{id}` for billboards
 
 ---
 
@@ -189,12 +211,40 @@
 1. ✅ Application loads without console errors
 2. ✅ Map displays in 2D mode by default with South China Sea view
 3. ✅ All 6 tracks visible with correct symbols and colors
-4. ✅ Clicking track in sidebar shows details panel
-5. ✅ Clicking track centers and follows camera on entity
-6. ✅ Zoom in/out works while following (zoom preserved)
-7. ✅ Own ship (HMS Defender) has range rings that scale with zoom
-8. ✅ Own ship has compass bearing lines that scale with zoom
-9. ✅ 2D/3D mode toggle works
-10. ✅ Timeline plays scenario at 1x speed by default
-11. ✅ Track history lines removed
-12. ✅ No Cesium Ion token required
+4. ✅ Clicking track in sidebar centers and follows camera on entity
+5. ✅ Clicking track symbol on map highlights track and shows details (no auto-center)
+6. ✅ Clicking anywhere on symbol (including unfilled areas) selects the track
+7. ✅ Zoom in/out works while following (zoom preserved)
+8. ✅ Zoom level preserved when switching between tracked entities
+9. ✅ Own ship (HMS Defender) has range rings that scale with zoom
+10. ✅ Own ship has compass bearing lines that scale with zoom
+11. ✅ 2D/3D mode toggle works
+12. ✅ Timeline plays scenario at 1x speed by default
+13. ✅ Track history lines removed
+14. ✅ No Cesium Ion token required
+
+---
+
+## 8. Technical Implementation Notes
+
+### 8.1 milsymbol v2 API Differences
+- No `getMarker()` method - use `asCanvas()` directly on Symbol instance
+- Use `getAnchor()` instead of deprecated `markerAnchor()`
+- Canvas size larger than actual symbol - requires offset calculation
+- `fill: true` option for filled symbols
+- `civilianColor: false` to use standard affiliation colors
+
+### 8.2 Cesium Coordinate Conversion
+- Use `Ellipsoid.WGS84.cartesianToCartographic(position)` instead of `Cartesian3.toCartographic()`
+- Convert radians to degrees for display: `longitude * 180/Math.PI`
+
+### 8.3 Click Detection on Transparent Areas
+- `scene.drillPick()` returns all objects at click position (not just topmost)
+- Nearly-transparent background (alpha 1) makes unfilled symbol areas clickable
+- Custom IDs on billboards and entities for reliable identification
+
+### 8.4 Zoom Preservation Implementation
+- Save camera state before setting `trackedEntity`
+- Use `flyTo()` with 0.5s duration and 100ms delay for smooth transitions
+- `convert: false` prevents double coordinate conversion
+- Maintains zoom level while tracking moving entities

@@ -144,10 +144,16 @@ body {
   background: #0a2810;
 }
 
+.track-item.selected {
+  background: #2d3748;
+  border: 1px solid #58a6ff;
+  box-shadow: 0 0 4px rgba(88, 166, 255, 0.2);
+}
+
 .track-item.following {
   background: #1a3a5c;
-  border: 1px solid #58a6ff;
-  box-shadow: 0 0 8px rgba(88, 166, 255, 0.3);
+  border: 2px solid #58a6ff;
+  box-shadow: 0 0 12px rgba(88, 166, 255, 0.5);
 }
 
 .track-item-canvas {
