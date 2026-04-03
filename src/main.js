@@ -115,6 +115,9 @@ function initCesium() {
   });
 
   viewer.camera.minimumZoomDistance = 10000;
+  viewer.scene.screenSpaceCameraController.inertiaSpin = 0.5;
+  viewer.scene.screenSpaceCameraController.inertiaTranslate = 0.5;
+  viewer.scene.screenSpaceCameraController.inertiaZoom = 0.5;
 
   viewer.clock.startTime = startTime;
   viewer.clock.stopTime = stopTime;
