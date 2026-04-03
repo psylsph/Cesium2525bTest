@@ -376,8 +376,13 @@ function addOwnShipRingsAndCompass(ownShipData, startTime) {
           const pos = positions.getValue(time);
           if (!pos) return [];
           const cart = Ellipsoid.WGS84.cartesianToCartographic(pos);
-          const startRadius = 3000;
-          const endRadius = majorLine ? 60000 : 35000;
+          
+          // Start compass lines from outside the inner ring
+          const cameraHeight = viewer.camera.positionCartographic.height;
+          const baseDistance = Math.max(cameraHeight * 0.1, 5000);
+          const startRadius = baseDistance;
+          const endRadius = majorLine ? baseDistance * 6 : baseDistance * 3.5;
+          
           return [
             Cartesian3.fromRadians(
               cart.longitude + Math.sin(angle) * startRadius / 6371000,
