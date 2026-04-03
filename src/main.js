@@ -163,7 +163,7 @@ function getSymbolAffiliation(type) {
 function getAircraftAffiliation(country) {
   if (!country) return 'unknown';
 
-  const hostileCountries = ['China', 'Russia', 'North Korea', 'Iran'];
+  const hostileCountries = ['Russia', 'North Korea', 'Iran'];
   const friendlyCountries = ['United States', 'United Kingdom', 'France', 'Germany', 'Japan', 'South Korea', 'Taiwan', 'Australia', 'Canada'];
 
   if (hostileCountries.some(c => country.includes(c))) return 'hostile';
