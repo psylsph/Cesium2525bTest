@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AAW Scenario - HMS Queen Elizabeth</title>
+  <script type="module" src="/src/main.js"></script>
+  <link rel="stylesheet" href="/src/style.css">
+</head>
+<body>
+  <div class="app-container">
+    <div class="sidebar" id="sidebar">
+      <div class="sidebar-header">
+        <h2>AAW Scenario</h2>
+        <p class="scenario-title">HMS Queen Elizabeth Under Attack</p>
+      </div>
+      <div class="sidebar-content">
+        <div class="mode-selector">
+          <button id="mode2d" class="mode-btn active">2D</button>
+          <button id="mode3d" class="mode-btn">3D</button>
+        </div>
+        <div class="legend">
+          <div class="legend-item friendly">
+            <span class="legend-color"></span> Friendly
+          </div>
+          <div class="legend-item hostile">
+            <span class="legend-color"></span> Hostile
+          </div>
+        </div>
+        <div class="track-list" id="trackList"></div>
+        <div class="track-details" id="trackDetails" style="display: none;">
+          <h3>Track Details</h3>
+          <div id="symbolCanvas"></div>
+          <div id="trackInfo"></div>
+        </div>
+      </div>
+    </div>
+    <div class="map-container">
+      <div id="cesiumContainer"></div>
+    </div>
+  </div>
+</body>
+</html>
