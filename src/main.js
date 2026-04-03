@@ -114,8 +114,8 @@ function initCesium() {
     baseLayerPicker: true,
     geocoder: false,
     homeButton: true,
-    timeline: true,
-    animation: true,
+    timeline: false,
+    animation: false,
     infoBox: true,
     selectionIndicator: true,
     shouldAnimate: true
@@ -136,8 +136,6 @@ function initCesium() {
   viewer.camera.setView({
     destination: Cartesian3.fromDegrees(120.5, 24.5, 150000)
   });
-
-  viewer.timeline.zoomTo(startTime, stopTime);
 
   addTracksToMap(startTime);
   const ownShipEntity = SCENARIO_SYMBOLS.find(s => s.id === OWN_SHIP_ID);
@@ -259,26 +257,21 @@ function addTracksToMap(startTime) {
 
 function generateTrackDescription(track) {
   const displayType = track.type === 'ownship' ? 'Own Ship' : track.type.toUpperCase();
-  const typeClass = track.type === 'ownship' ? 'friendly' : track.type;
+  const trackingStatus = followTrackId === track.id ? 'Active' : 'Inactive';
 
   return `
-    <div style="padding: 15px; font-family: 'Segoe UI', Arial, sans-serif; min-width: 250px;">
-      <h3 style="margin: 0 0 10px 0; color: #58a6ff; font-size: 16px;">Track Details</h3>
-      <div style="background: rgba(33, 38, 45, 0.9); padding: 10px; border-radius: 6px; border-left: 3px solid ${track.type === 'friendly' ? '#00ffff' : track.type === 'ownship' ? '#00ff00' : '#ff0000'};">
-        <div style="color: #e0e6ed; font-size: 14px; line-height: 1.6;">
-          <div><strong style="color: #58a6ff;">ID:</strong> ${track.id}</div>
-          <div><strong style="color: #58a6ff;">Name:</strong> ${track.name}</div>
-          <div><strong style="color: #58a6ff;">Description:</strong> ${track.description}</div>
-          <div><strong style="color: #58a6ff;">Type:</strong> <span style="color: ${track.type === 'friendly' ? '#00ffff' : track.type === 'ownship' ? '#00ff00' : '#ff4444'}; font-weight: 600;">${displayType}</span></div>
-          <div><strong style="color: #58a6ff;">Speed:</strong> ${track.speed}</div>
-          <div><strong style="color: #58a6ff;">SIDC:</strong> ${track.sidc}</div>
-          <div><strong style="color: #58a6ff;">Waypoints:</strong> ${track.path.length}</div>
-          <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid #30363d;">
-            <strong style="color: ${followTrackId === track.id ? '#3fb950' : '#8b949e'};">Tracking: ${followTrackId === track.id ? '● Active' : '○ Inactive'}</strong>
-          </div>
-        </div>
-      </div>
-    </div>
+    <table class="cesium-infoBox-defaultTable">
+      <tbody>
+        <tr><th>ID</th><td>${track.id}</td></tr>
+        <tr><th>Name</th><td>${track.name}</td></tr>
+        <tr><th>Description</th><td>${track.description}</td></tr>
+        <tr><th>Type</th><td><span style="color: ${track.type === 'friendly' ? '#00ffff' : track.type === 'ownship' ? '#00ff00' : '#ff4444'}">${displayType}</span></td></tr>
+        <tr><th>Speed</th><td>${track.speed}</td></tr>
+        <tr><th>SIDC</th><td>${track.sidc}</td></tr>
+        <tr><th>Waypoints</th><td>${track.path.length}</td></tr>
+        <tr><th>Tracking</th><td><span style="color: ${followTrackId === track.id ? '#3fb950' : '#8b949e'}">${trackingStatus}</span></td></tr>
+      </tbody>
+    </table>
   `;
 }
 
@@ -818,27 +811,21 @@ function updateOpenSkyAircraft(states) {
 
 function generateOpenSkyDescription(icao24, callsign, originCountry, altitude, velocity, heading, verticalRate, affiliation) {
   const affiliationDisplay = affiliation.toUpperCase();
-  const affiliationClass = affiliation === 'unknown' ? 'hostile' : affiliation;
 
   return `
-    <div style="padding: 15px; font-family: 'Segoe UI', Arial, sans-serif; min-width: 250px;">
-      <h3 style="margin: 0 0 10px 0; color: #58a6ff; font-size: 16px;">Live Aircraft Details</h3>
-      <div style="background: rgba(33, 38, 45, 0.9); padding: 10px; border-radius: 6px; border-left: 3px solid ${affiliation === 'friendly' ? '#00ffff' : affiliation === 'hostile' ? '#ff0000' : '#ffff00'};">
-        <div style="color: #e0e6ed; font-size: 14px; line-height: 1.6;">
-          <div><strong style="color: #58a6ff;">ICAO24:</strong> ${icao24}</div>
-          <div><strong style="color: #58a6ff;">Callsign:</strong> ${callsign || 'N/A'}</div>
-          <div><strong style="color: #58a6ff;">Country:</strong> ${originCountry || 'N/A'}</div>
-          <div><strong style="color: #58a6ff;">Type:</strong> <span style="color: ${affiliation === 'friendly' ? '#00ffff' : affiliation === 'hostile' ? '#ff4444' : '#ffff00'}; font-weight: 600;">${affiliationDisplay} AIRCRAFT</span></div>
-          ${velocity ? `<div><strong style="color: #58a6ff;">Speed:</strong> ${(velocity * 3.6).toFixed(0)} km/h</div>` : ''}
-          ${altitude ? `<div><strong style="color: #58a6ff;">Altitude:</strong> ${(altitude * 0.3048).toFixed(0)} m</div>` : ''}
-          ${heading ? `<div><strong style="color: #58a6ff;">Heading:</strong> ${heading.toFixed(0)}°</div>` : ''}
-          ${verticalRate ? `<div><strong style="color: #58a6ff;">Vertical Rate:</strong> ${(verticalRate * 60 * 0.3048).toFixed(0)} m/min</div>` : ''}
-          <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid #30363d;">
-            <strong style="color: #3fb950;">● Live Data</strong>
-          </div>
-        </div>
-      </div>
-    </div>
+    <table class="cesium-infoBox-defaultTable">
+      <tbody>
+        <tr><th>ICAO24</th><td>${icao24}</td></tr>
+        <tr><th>Callsign</th><td>${callsign || 'N/A'}</td></tr>
+        <tr><th>Country</th><td>${originCountry || 'N/A'}</td></tr>
+        <tr><th>Type</th><td><span style="color: ${affiliation === 'friendly' ? '#00ffff' : affiliation === 'hostile' ? '#ff4444' : '#ffff00'}">${affiliationDisplay} Aircraft</span></td></tr>
+        ${velocity ? `<tr><th>Speed</th><td>${(velocity * 3.6).toFixed(0)} km/h</td></tr>` : ''}
+        ${altitude ? `<tr><th>Altitude</th><td>${(altitude * 0.3048).toFixed(0)} m</td></tr>` : ''}
+        ${heading ? `<tr><th>Heading</th><td>${heading.toFixed(0)}°</td></tr>` : ''}
+        ${verticalRate ? `<tr><th>Vertical Rate</th><td>${(verticalRate * 60 * 0.3048).toFixed(0)} m/min</td></tr>` : ''}
+        <tr><th>Data</th><td><span style="color: #3fb950;">● Live</span></td></tr>
+      </tbody>
+    </table>
   `;
 }
 
@@ -879,7 +866,48 @@ function setupOpenSkyIntegration() {
   }, 2000);
 }
 
+function initTimelineControls() {
+  const btnPlay = document.getElementById('btnPlay');
+  const btnPause = document.getElementById('btnPause');
+  const btnReset = document.getElementById('btnReset');
+  const timeDisplay = document.getElementById('timeDisplay');
+
+  const updateDisplay = () => {
+    if (!viewer || !viewer.clock) return;
+    
+    const currentTime = viewer.clock.currentTime;
+    const startTime = viewer.clock.startTime;
+    
+    if (!currentTime || !startTime) return;
+    
+    const elapsedSeconds = JulianDate.secondsDifference(currentTime, startTime);
+    const minutes = Math.floor(Math.max(0, elapsedSeconds) / 60);
+    const seconds = Math.floor(Math.max(0, elapsedSeconds) % 60);
+    timeDisplay.textContent = `T+${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+  };
+
+  btnPlay.addEventListener('click', () => {
+    viewer.clock.shouldAnimate = true;
+  });
+
+  btnPause.addEventListener('click', () => {
+    viewer.clock.shouldAnimate = false;
+  });
+
+  btnReset.addEventListener('click', () => {
+    viewer.clock.currentTime = viewer.clock.startTime;
+    viewer.clock.shouldAnimate = false;
+    updateDisplay();
+  });
+
+  viewer.clock.onTick.addEventListener(updateDisplay);
+  
+  // Initial display update
+  setTimeout(updateDisplay, 100);
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   initCesium();
   initTrackList();
+  initTimelineControls();
 });

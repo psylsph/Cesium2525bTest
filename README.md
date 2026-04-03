@@ -86,10 +86,11 @@ To enable live aircraft tracking with authentication:
 
 ### Timeline Controls
 
-- **Play/Pause**: Use the timeline controls at the bottom
-- **Speed adjustment**: Change playback speed with multiplier
-- **Timeline scrubber**: Jump to any point in the scenario
-- **Loop**: Scenario automatically loops
+- **Play button**: Start scenario animation
+- **Pause button**: Pause animation at current time
+- **Reset button**: Reset to beginning (T+00:00)
+- **Time display**: Shows elapsed time in minutes and seconds
+- Scenario automatically loops when reaching the end
 
 ## Testing
 

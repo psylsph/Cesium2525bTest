@@ -49,6 +49,55 @@ body {
   padding: 15px;
 }
 
+.timeline-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 15px;
+  padding: 10px;
+  background: #21262d;
+  border-radius: 6px;
+}
+
+.timeline-btn {
+  width: 32px;
+  height: 32px;
+  background: #30363d;
+  border: 1px solid #444c56;
+  color: #c9d1d9;
+  border-radius: 4px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.timeline-btn:hover {
+  background: #3c444d;
+  border-color: #58a6ff;
+}
+
+.timeline-btn:active {
+  background: #58a6ff;
+  color: white;
+}
+
+.timeline-btn svg {
+  pointer-events: none;
+}
+
+.time-display {
+  margin-left: auto;
+  font-family: monospace;
+  font-size: 13px;
+  color: #8b949e;
+  padding: 6px 10px;
+  background: #0d1117;
+  border-radius: 4px;
+  border: 1px solid #30363d;
+}
+
 .legend {
   display: flex;
   gap: 20px;
@@ -163,7 +212,7 @@ body {
   height: 100%;
 }
 
-.cesium-credit-logoContainer {
+.cesium-viewer-bottom {
   display: none !important;
 }
 
