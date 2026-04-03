@@ -58,10 +58,38 @@ To enable live aircraft tracking with authentication:
   - Red: Hostile (China, Russia, North Korea, Iran)
   - Yellow: Unknown (other countries)
 - Symbols show aircraft heading direction
-- Click aircraft to see callsign, altitude, speed, heading
+- **Click any aircraft** to see popup with:
+  - Callsign and country
+  - Real-time altitude, speed, heading
+  - Vertical rate (climb/descent)
+  - Affiliation indicator
+- Click again or click elsewhere to close popup
 - Only loads aircraft in your current view area
 - Updates every 10 seconds to avoid API overload
 - Automatic cleanup of stale data
+
+## Usage
+
+### Scenario Tracks & Live Flights
+
+- **Click any track or flight** to see popup with details
+- **Scenario tracks** show ID, name, type, speed, waypoints, and tracking status
+- **Live flights** show callsign, country, altitude, speed, heading, and vertical rate
+- **Click sidebar items** to center and follow tracks
+- **Popups update in real-time** when following tracks
+
+### Following Tracks
+
+- **Sidebar click**: Centers and follows the track
+- **Click same track**: Stops following (keeps it highlighted)
+- **Zoom freely**: While following, you can zoom in/out
+
+### Timeline Controls
+
+- **Play/Pause**: Use the timeline controls at the bottom
+- **Speed adjustment**: Change playback speed with multiplier
+- **Timeline scrubber**: Jump to any point in the scenario
+- **Loop**: Scenario automatically loops
 
 ## Testing
 

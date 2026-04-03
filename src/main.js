@@ -34,10 +34,10 @@ const SCENARIO_SYMBOLS = [
     type: 'hostile',
     speed: '40 knots',
     path: [
-      { lon: 119.80, lat: 24.20, time: 0 },
-      { lon: 120.00, lat: 24.35, time: 400 },
-      { lon: 120.20, lat: 24.50, time: 800 },
-      { lon: 120.40, lat: 24.65, time: 1200 }
+      { lon: 119.80, lat: 24.00, time: 0 },
+      { lon: 120.00, lat: 24.15, time: 400 },
+      { lon: 120.20, lat: 24.30, time: 800 },
+      { lon: 120.40, lat: 24.45, time: 1200 }
     ]
   },
   {
@@ -48,10 +48,10 @@ const SCENARIO_SYMBOLS = [
     type: 'hostile',
     speed: '40 knots',
     path: [
-      { lon: 121.20, lat: 24.20, time: 0 },
-      { lon: 121.00, lat: 24.35, time: 400 },
+      { lon: 121.20, lat: 24.80, time: 0 },
+      { lon: 121.00, lat: 24.65, time: 400 },
       { lon: 120.80, lat: 24.50, time: 800 },
-      { lon: 120.60, lat: 24.65, time: 1200 }
+      { lon: 120.60, lat: 24.35, time: 1200 }
     ]
   },
   {
@@ -116,7 +116,7 @@ function initCesium() {
     homeButton: true,
     timeline: true,
     animation: true,
-    infoBox: false,
+    infoBox: true,
     selectionIndicator: true,
     shouldAnimate: true
   });
@@ -140,6 +140,10 @@ function initCesium() {
   viewer.timeline.zoomTo(startTime, stopTime);
 
   addTracksToMap(startTime);
+  const ownShipEntity = SCENARIO_SYMBOLS.find(s => s.id === OWN_SHIP_ID);
+  if (ownShipEntity) {
+    addOwnShipRingsAndCompass(ownShipEntity, startTime);
+  }
   setupSelectionHandler();
   setupTrackingLoop();
   setupOpenSkyIntegration();
@@ -160,7 +164,7 @@ function getSymbolAffiliation(type) {
 function getAircraftAffiliation(country) {
   if (!country) return 'unknown';
 
-  const hostileCountries = ['Russia', 'China', 'North Korea', 'Iran'];
+  const hostileCountries = ['Russia', 'North Korea', 'Iran'];
   const friendlyCountries = ['United States', 'United Kingdom', 'France', 'Germany', 'Japan', 'South Korea', 'Taiwan', 'Australia', 'Canada'];
 
   if (hostileCountries.some(c => country.includes(c))) return 'hostile';
@@ -247,9 +251,35 @@ function addTracksToMap(startTime) {
       startTime,
       entity
     };
-  });
 
-  addOwnShipRingsAndCompass(ownShipEntity, startTime);
+    // Add popup description
+    entity.description = generateTrackDescription(symbolData);
+  });
+}
+
+function generateTrackDescription(track) {
+  const displayType = track.type === 'ownship' ? 'Own Ship' : track.type.toUpperCase();
+  const typeClass = track.type === 'ownship' ? 'friendly' : track.type;
+
+  return `
+    <div style="padding: 15px; font-family: 'Segoe UI', Arial, sans-serif; min-width: 250px;">
+      <h3 style="margin: 0 0 10px 0; color: #58a6ff; font-size: 16px;">Track Details</h3>
+      <div style="background: rgba(33, 38, 45, 0.9); padding: 10px; border-radius: 6px; border-left: 3px solid ${track.type === 'friendly' ? '#00ffff' : track.type === 'ownship' ? '#00ff00' : '#ff0000'};">
+        <div style="color: #e0e6ed; font-size: 14px; line-height: 1.6;">
+          <div><strong style="color: #58a6ff;">ID:</strong> ${track.id}</div>
+          <div><strong style="color: #58a6ff;">Name:</strong> ${track.name}</div>
+          <div><strong style="color: #58a6ff;">Description:</strong> ${track.description}</div>
+          <div><strong style="color: #58a6ff;">Type:</strong> <span style="color: ${track.type === 'friendly' ? '#00ffff' : track.type === 'ownship' ? '#00ff00' : '#ff4444'}; font-weight: 600;">${displayType}</span></div>
+          <div><strong style="color: #58a6ff;">Speed:</strong> ${track.speed}</div>
+          <div><strong style="color: #58a6ff;">SIDC:</strong> ${track.sidc}</div>
+          <div><strong style="color: #58a6ff;">Waypoints:</strong> ${track.path.length}</div>
+          <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid #30363d;">
+            <strong style="color: ${followTrackId === track.id ? '#3fb950' : '#8b949e'};">Tracking: ${followTrackId === track.id ? '● Active' : '○ Inactive'}</strong>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
 }
 
 function addOwnShipRingsAndCompass(ownShipData, startTime) {
@@ -388,14 +418,7 @@ function selectTrack(trackId) {
     viewer.trackedEntity = undefined;
   }
   selectedTrackId = trackId;
-  
-  // Check if it's an OpenSky aircraft
-  if (trackId.startsWith('opensky-')) {
-    showOpenSkyDetails(trackId);
-  } else {
-    showTrackDetails(trackId);
-  }
-  
+
   updateTrackListHighlight();
 }
 
@@ -482,11 +505,19 @@ function toggleFollowTrack(trackId) {
   });
 
   updateTrackListHighlight();
-  showTrackDetails(trackId);
 }
 
 function setupTrackingLoop() {
   viewer.clock.onTick.addEventListener(() => {
+    // Update popup descriptions for scenario tracks
+    Object.keys(trackData).forEach(trackId => {
+      const entity = trackEntities[trackId];
+      const track = trackData[trackId];
+      if (entity && track) {
+        entity.description = generateTrackDescription(track);
+      }
+    });
+
     if (!followTrackId) {
       return;
     }
@@ -498,7 +529,7 @@ function setupTrackingLoop() {
     if (!position) return;
 
     const cartographic = Ellipsoid.WGS84.cartesianToCartographic(position);
-    
+
     const currentHeight = viewer.camera.positionCartographic.height;
     const targetHeight = Math.max(currentHeight, 10000);
 
@@ -515,14 +546,6 @@ function setupTrackingLoop() {
       },
       convert: false
     });
-
-    const trackInfo = document.getElementById('trackInfo');
-    if (trackInfo && document.getElementById('trackDetails').style.display !== 'none') {
-      const posEl = trackInfo.querySelector('.info-item:nth-child(8)');
-      if (posEl && cartographic) {
-        posEl.innerHTML = `<strong>Position:</strong> ${(cartographic.latitude * 180 / Math.PI).toFixed(4)}°, ${(cartographic.longitude * 180 / Math.PI).toFixed(4)}°`;
-      }
-    }
   });
 }
 
@@ -539,96 +562,6 @@ function updateTrackListHighlight() {
     const activeItem = document.querySelector(`.track-item[data-id="${selectedTrackId}"]`);
     if (activeItem) activeItem.classList.add('selected');
   }
-}
-
-function showTrackDetails(trackId) {
-  const track = trackData[trackId];
-  if (!track) return;
-
-  const detailsPanel = document.getElementById('trackDetails');
-  const symbolCanvas = document.getElementById('symbolCanvas');
-  const trackInfo = document.getElementById('trackInfo');
-
-  const color = getSymbolColor(track.type);
-  const sym = new ms.Symbol(track.sidc, { 
-    size: 80, 
-    monoColor: color,
-    fill: true,
-    civilianColor: false
-  });
-  const canvas = sym.asCanvas();
-  
-  symbolCanvas.innerHTML = '';
-  symbolCanvas.appendChild(canvas);
-
-  const entity = track.entity;
-  const position = entity.position.getValue(viewer.clock.currentTime);
-  const cartographic = position ? Ellipsoid.WGS84.cartesianToCartographic(position) : null;
-  const displayType = track.type === 'ownship' ? 'Own Ship' : track.type.toUpperCase();
-
-  trackInfo.innerHTML = `
-    <div class="info-item"><strong>ID:</strong> ${track.id}</div>
-    <div class="info-item"><strong>Name:</strong> ${track.name}</div>
-    <div class="info-item"><strong>Description:</strong> ${track.description}</div>
-    <div class="info-item"><strong>Type:</strong> <span class="${track.type}">${displayType}</span></div>
-    <div class="info-item"><strong>Speed:</strong> ${track.speed}</div>
-    <div class="info-item"><strong>SIDC:</strong> ${track.sidc}</div>
-    ${cartographic ? `
-      <div class="info-item"><strong>Position:</strong> ${(cartographic.latitude * 180 / Math.PI).toFixed(4)}°, ${(cartographic.longitude * 180 / Math.PI).toFixed(4)}°</div>
-    ` : ''}
-    <div class="info-item"><strong>Waypoints:</strong> ${track.path.length}</div>
-    <div class="info-item follow-status"><strong>Tracking:</strong> ${followTrackId === trackId ? '<span class="following-indicator">YES</span>' : 'No'}</div>
-  `;
-
-  detailsPanel.style.display = 'block';
-}
-
-function showOpenSkyDetails(aircraftId) {
-  const icao24 = aircraftId.replace('opensky-', '');
-  const aircraft = openskyAircraft[icao24];
-  const entity = openskyEntities[icao24];
-
-  if (!aircraft || !entity) return;
-
-  const detailsPanel = document.getElementById('trackDetails');
-  const symbolCanvas = document.getElementById('symbolCanvas');
-  const trackInfo = document.getElementById('trackInfo');
-
-  const color = getSymbolColor(aircraft.affiliation === 'unknown' ? 'hostile' : aircraft.affiliation);
-  const sym = new ms.Symbol(aircraft.sidc, {
-    size: 80,
-    monoColor: color,
-    fill: true,
-    civilianColor: false,
-    direction: entity.properties?.heading || 0
-  });
-  const canvas = sym.asCanvas();
-
-  symbolCanvas.innerHTML = '';
-  symbolCanvas.appendChild(canvas);
-
-  const position = entity.position;
-  const cartographic = position ? Ellipsoid.WGS84.cartesianToCartographic(position) : null;
-
-  const affiliationDisplay = aircraft.affiliation.toUpperCase();
-
-  trackInfo.innerHTML = `
-    <div class="info-item"><strong>ICAO24:</strong> ${icao24}</div>
-    <div class="info-item"><strong>Callsign:</strong> ${aircraft.callsign || 'N/A'}</div>
-    <div class="info-item"><strong>Country:</strong> ${aircraft.originCountry || 'N/A'}</div>
-    <div class="info-item"><strong>Type:</strong> <span class="${aircraft.affiliation === 'unknown' ? 'hostile' : aircraft.affiliation}">${affiliationDisplay} AIRCRAFT</span></div>
-    <div class="info-item"><strong>SIDC:</strong> ${aircraft.sidc}</div>
-    ${entity.properties?.velocity ? `<div class="info-item"><strong>Speed:</strong> ${(entity.properties.velocity * 3.6).toFixed(0)} km/h</div>` : ''}
-    ${entity.properties?.altitude ? `<div class="info-item"><strong>Altitude:</strong> ${(entity.properties.altitude * 0.3048).toFixed(0)} m</div>` : ''}
-    ${entity.properties?.heading ? `<div class="info-item"><strong>Heading:</strong> ${entity.properties.heading.toFixed(0)}°</div>` : ''}
-    ${entity.properties?.verticalRate ? `<div class="info-item"><strong>Vertical Rate:</strong> ${(entity.properties.verticalRate * 60 * 0.3048).toFixed(0)} m/min</div>` : ''}
-    ${cartographic ? `
-      <div class="info-item"><strong>Position:</strong> ${(cartographic.latitude * 180 / Math.PI).toFixed(4)}°, ${(cartographic.longitude * 180 / Math.PI).toFixed(4)}°</div>
-    ` : ''}
-    <div class="info-item follow-status"><strong>Live Data:</strong> <span class="following-indicator">YES</span></div>
-  `;
-
-  detailsPanel.style.display = 'block';
 }
 
 function initTrackList() {
@@ -800,6 +733,7 @@ function updateOpenSkyAircraft(states) {
           id: `billboard-opensky-${icao24}`
         },
         properties: {
+          id: `opensky-${icao24}`,
           icao24: icao24,
           callsign: callsign,
           originCountry: originCountry,
@@ -813,6 +747,9 @@ function updateOpenSkyAircraft(states) {
           sidc: sidc
         }
       });
+
+      // Add click handler for this entity
+      entity.description = generateOpenSkyDescription(icao24, callsign, originCountry, baroAltitude, velocity, trueTrack, verticalRate, affiliation);
 
       openskyEntities[icao24] = entity;
       openskyAircraft[icao24] = {
@@ -859,6 +796,9 @@ function updateOpenSkyAircraft(states) {
         entity.properties.verticalRate = verticalRate;
       }
 
+      // Update description
+      entity.description = generateOpenSkyDescription(icao24, callsign, originCountry, baroAltitude, velocity, trueTrack, verticalRate, affiliation);
+
       openskyAircraft[icao24].lastUpdate = Date.now();
     }
   });
@@ -874,6 +814,32 @@ function updateOpenSkyAircraft(states) {
       }
     }
   });
+}
+
+function generateOpenSkyDescription(icao24, callsign, originCountry, altitude, velocity, heading, verticalRate, affiliation) {
+  const affiliationDisplay = affiliation.toUpperCase();
+  const affiliationClass = affiliation === 'unknown' ? 'hostile' : affiliation;
+
+  return `
+    <div style="padding: 15px; font-family: 'Segoe UI', Arial, sans-serif; min-width: 250px;">
+      <h3 style="margin: 0 0 10px 0; color: #58a6ff; font-size: 16px;">Live Aircraft Details</h3>
+      <div style="background: rgba(33, 38, 45, 0.9); padding: 10px; border-radius: 6px; border-left: 3px solid ${affiliation === 'friendly' ? '#00ffff' : affiliation === 'hostile' ? '#ff0000' : '#ffff00'};">
+        <div style="color: #e0e6ed; font-size: 14px; line-height: 1.6;">
+          <div><strong style="color: #58a6ff;">ICAO24:</strong> ${icao24}</div>
+          <div><strong style="color: #58a6ff;">Callsign:</strong> ${callsign || 'N/A'}</div>
+          <div><strong style="color: #58a6ff;">Country:</strong> ${originCountry || 'N/A'}</div>
+          <div><strong style="color: #58a6ff;">Type:</strong> <span style="color: ${affiliation === 'friendly' ? '#00ffff' : affiliation === 'hostile' ? '#ff4444' : '#ffff00'}; font-weight: 600;">${affiliationDisplay} AIRCRAFT</span></div>
+          ${velocity ? `<div><strong style="color: #58a6ff;">Speed:</strong> ${(velocity * 3.6).toFixed(0)} km/h</div>` : ''}
+          ${altitude ? `<div><strong style="color: #58a6ff;">Altitude:</strong> ${(altitude * 0.3048).toFixed(0)} m</div>` : ''}
+          ${heading ? `<div><strong style="color: #58a6ff;">Heading:</strong> ${heading.toFixed(0)}°</div>` : ''}
+          ${verticalRate ? `<div><strong style="color: #58a6ff;">Vertical Rate:</strong> ${(verticalRate * 60 * 0.3048).toFixed(0)} m/min</div>` : ''}
+          <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid #30363d;">
+            <strong style="color: #3fb950;">● Live Data</strong>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
 }
 
 function cleanupOldAircraft() {
