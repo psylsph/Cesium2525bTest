@@ -55,7 +55,7 @@ To enable live aircraft tracking with authentication:
 **Live Flight Features**:
 - MIL-STD-2525 aircraft symbols with affiliation detection
   - Blue/Cyan: Friendly (US, UK, Taiwan, Japan, etc.)
-  - Red: Hostile (China, Russia, North Korea, Iran)
+  - Red: Hostile (Russia, North Korea, Iran)
   - Yellow: Unknown (other countries)
 - Symbols show aircraft heading direction
 - **Click any aircraft** to see popup with:

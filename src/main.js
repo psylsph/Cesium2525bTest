@@ -150,6 +150,7 @@ function initCesium() {
 function getSymbolColor(type) {
   if (type === 'ownship') return 'rgb(0, 255, 0)';
   if (type === 'hostile') return 'rgb(255, 0, 0)';
+  if (type === 'unknown') return 'rgb(255, 255, 0)';
   return 'rgb(0, 255, 255)';
 }
 
@@ -162,12 +163,31 @@ function getSymbolAffiliation(type) {
 function getAircraftAffiliation(country) {
   if (!country) return 'unknown';
 
-  const hostileCountries = ['Russia', 'North Korea', 'Iran'];
+  const hostileCountries = ['China', 'Russia', 'North Korea', 'Iran'];
   const friendlyCountries = ['United States', 'United Kingdom', 'France', 'Germany', 'Japan', 'South Korea', 'Taiwan', 'Australia', 'Canada'];
 
   if (hostileCountries.some(c => country.includes(c))) return 'hostile';
   if (friendlyCountries.some(c => country.includes(c))) return 'friendly';
   return 'unknown';
+}
+
+function formatDistance(meters) {
+  if (meters >= 100000) {
+    // Very large distances - round to nearest 10km
+    const km = Math.round(meters / 1000);
+    return `${Math.round(km / 10) * 10}km`;
+  } else if (meters >= 10000) {
+    // Large distances - round to nearest 1km
+    const km = meters / 1000;
+    return `${Math.round(km)}km`;
+  } else if (meters >= 1000) {
+    // Medium distances - round to nearest 100m
+    const km = meters / 1000;
+    return `${(km).toFixed(1)}km`;
+  } else {
+    // Small distances - round to nearest 100m
+    return `${Math.round(meters / 100) * 100}m`;
+  }
 }
 
 function getAircraftSidc(affiliation) {
@@ -282,15 +302,11 @@ function addOwnShipRingsAndCompass(ownShipData, startTime) {
     positions.addSample(time, Cartesian3.fromDegrees(point.lon, point.lat));
   });
 
-  const fixedRingRadii = [
-    { meters: 5000, label: '5km' },
-    { meters: 10000, label: '10km' },
-    { meters: 25000, label: '25km' },
-    { meters: 50000, label: '50km' },
-    { meters: 100000, label: '100km' }
-  ];
+  const numRings = 5;
+  const ringMultipliers = [1, 2, 3, 4, 5];
+  const eastAngle = Math.PI / 2; // 90 degrees (East)
 
-  fixedRingRadii.forEach((ring, index) => {
+  ringMultipliers.forEach((multiplier, index) => {
     viewer.entities.add({
       id: `range-ring-${index}`,
       polyline: {
@@ -298,7 +314,13 @@ function addOwnShipRingsAndCompass(ownShipData, startTime) {
           const pos = positions.getValue(time);
           if (!pos) return [];
           const cart = Ellipsoid.WGS84.cartesianToCartographic(pos);
-          return createCirclePositions(cart.longitude, cart.latitude, ring.meters, 72);
+          
+          // Calculate base distance based on camera height (zoom level)
+          const cameraHeight = viewer.camera.positionCartographic.height;
+          const baseDistance = Math.max(cameraHeight * 0.1, 5000); // 10% of camera height, min 5km
+          const ringRadius = baseDistance * multiplier;
+          
+          return createCirclePositions(cart.longitude, cart.latitude, ringRadius, 72);
         }, false),
         width: 2,
         material: index === 0 ? Color.LIME : Color.LIME.withAlpha(0.3)
@@ -306,34 +328,39 @@ function addOwnShipRingsAndCompass(ownShipData, startTime) {
     });
   });
 
-  const fixedLabelRadii = [5000, 10000, 25000, 50000, 100000];
-  const labelAngles = [0, Math.PI / 4, Math.PI / 2, 3 * Math.PI / 4, Math.PI, 5 * Math.PI / 4, 3 * Math.PI / 2, 7 * Math.PI / 4];
-
-  fixedLabelRadii.forEach((meters, ringIndex) => {
-    labelAngles.forEach((angle, labelIndex) => {
-      const id = `ring-label-${ringIndex}-${labelIndex}`;
-      viewer.entities.add({
-        id: id,
-        position: new CallbackProperty((time) => {
-          const pos = positions.getValue(time);
-          if (!pos) return Cartesian3.ZERO;
-          const cart = Ellipsoid.WGS84.cartesianToCartographic(pos);
-          const d = meters / 6371000;
-          const latOffset = d * Math.cos(angle);
-          const lonOffset = d * Math.sin(angle) / Math.cos(cart.latitude);
-          return Cartesian3.fromRadians(cart.longitude + lonOffset, cart.latitude + latOffset);
+  ringMultipliers.forEach((multiplier, index) => {
+    viewer.entities.add({
+      id: `ring-label-${index}-east`,
+      position: new CallbackProperty((time) => {
+        const pos = positions.getValue(time);
+        if (!pos) return Cartesian3.ZERO;
+        const cart = Ellipsoid.WGS84.cartesianToCartographic(pos);
+        
+        // Calculate base distance based on camera height (zoom level)
+        const cameraHeight = viewer.camera.positionCartographic.height;
+        const baseDistance = Math.max(cameraHeight * 0.1, 5000); // 10% of camera height, min 5km
+        const ringRadius = baseDistance * multiplier;
+        
+        const d = ringRadius / 6371000;
+        const latOffset = d * Math.cos(eastAngle);
+        const lonOffset = d * Math.sin(eastAngle) / Math.cos(cart.latitude);
+        return Cartesian3.fromRadians(cart.longitude + lonOffset, cart.latitude + latOffset);
+      }, false),
+      label: {
+        text: new CallbackProperty(() => {
+          const cameraHeight = viewer.camera.positionCartographic.height;
+          const baseDistance = Math.max(cameraHeight * 0.1, 5000);
+          const ringRadius = baseDistance * multiplier;
+          
+          return formatDistance(ringRadius);
         }, false),
-        label: {
-          text: ringIndex === 0 || ringIndex === 2 || ringIndex === 4 ? 
-            (fixedRingRadii[ringIndex].label) : '',
-          font: '10px monospace',
-          fillColor: Color.LIME,
-          showBackground: true,
-          backgroundColor: Color.BLACK.withAlpha(0.6),
-          pixelOffset: new Cartesian2(0, 0),
-          disableDepthTestDistance: Number.POSITIVE_INFINITY
-        }
-      });
+        font: '10px monospace',
+        fillColor: Color.LIME,
+        showBackground: true,
+        backgroundColor: Color.BLACK.withAlpha(0.6),
+        pixelOffset: new Cartesian2(0, 0),
+        disableDepthTestDistance: Number.POSITIVE_INFINITY
+      }
     });
   });
 
@@ -696,7 +723,7 @@ function updateOpenSkyAircraft(states) {
 
     const affiliation = getAircraftAffiliation(originCountry);
     const sidc = getAircraftSidc(affiliation);
-    const color = getSymbolColor(affiliation === 'unknown' ? 'hostile' : affiliation);
+    const color = getSymbolColor(affiliation);
 
     if (!openskyEntities[icao24]) {
       const sym = new ms.Symbol(sidc, {
